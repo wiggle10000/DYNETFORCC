@@ -1,0 +1,11 @@
+here you can acess the CD player!
+
+$disk
+
+options:
+ eject~$eject
+ play~$play
+ stop~$stop
+
+
+return to homepage~loc:home

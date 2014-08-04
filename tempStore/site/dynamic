@@ -1,0 +1,292 @@
+checkDate="never"
+lnames={}
+rnames={}
+
+lcount={}
+rcount={}
+
+lorder={}
+rorder={}
+currentLoc=0
+storeSize=0
+totalItems=0
+indent=20
+function reset()--resets turtle position (assuming it's facing the right way
+	while turtle.back()==true do end--keep going until against a wall
+	currentLoc=1
+end
+function updateName(newName,side)
+	if side=="left" then
+		lnames[currentLoc]=newName
+	end
+	if side=="right" then
+		rnames[currentLoc]=newName
+	end
+end
+function printTable(input)
+	for key, value in pairs(input) do
+		print(key .. " = " .. tostring(value))
+	end
+end
+function countItems(side)--returns ammount of items in chest, 0 if empty, nil if no chest was found. also updates tables.
+	turnBack=false
+	sucess=false
+	oside=side
+	if(side=="right") then--modem's in the way!
+		side="front"
+		turnBack=true
+		turtle.turnRight()
+	end
+	qty=0
+	if peripheral.isPresent(side)==true then
+		local chest=peripheral.wrap(side)
+		chest.condense()--move all stacks to top-left
+		slot=0
+		updateName("(out of stock)",oside)--value if nothing is found
+		while true do--count all stacks
+			stack = chest.getStackInSlot(slot)
+			--returns rawName,qty,dmg,name,id
+			if stack==nil then--out of stuff
+				sucess=true
+				break--stop infinite loop
+			end
+			if slot==0 then updateName(stack["name"],oside) end--set name to first item
+			qty=qty+stack["qty"]--add the ammount in this stack to the current total
+			if side=="left" then
+				lcount[currentLoc]=newName
+			end
+			if side=="right" then
+				rcount[currentLoc]=newName
+			end
+			slot=slot+1
+		end--end loop
+		
+		
+	end
+	if turnBack then
+		turtle.turnLeft()
+	end
+	if sucess==true then return qty
+	else return nil end
+end
+
+function checkStock()
+	
+	reset()--we should be against a wall, but it's in case we crashed or restarted
+	totalItems=0
+	while true do
+		os.sleep(0.1)
+		ritems=countItems("right")
+		litems=countItems("left")
+		lcount[currentLoc]=litems
+		rcount[currentLoc]=ritems
+		totalItems=totalItems+ritems+litems
+		if turtle.forward() and turtle.forward() then--if we successfully move forward twice
+			currentLoc=currentLoc+1
+		else
+			break--reached end
+		end
+	end
+	storeSize=currentLoc
+	reset()
+end
+function takeItems(side,qty)
+	slot=1
+	while turtle.getItemCount(slot)~=0 do
+		slot=slot+1
+	end
+	turtle.select(slot)--select the first empty slot
+	--face the correct chest
+	if side=="left" then
+		turtle.turnLeft()
+	elseif side=="right" then
+		turtle.turnRight()
+	end
+		for i=1,qty/64 do
+		turtle.suck()
+	end
+	turtle.suck()
+	lastSlot=slot
+	--find the last slot we filled
+	while turtle.getItemCount(lastSlot)~=0 do
+		lastSlot=lastSlot+1
+	end
+	lastSlot=lastSlot-1
+	currentItems=(lastSlot-slot)*64+turtle.getItemCount(lastSlot)
+	turtle.select(lastSlot)
+	turtle.drop(currentItems-qty)--put the acess units back
+	--face forwards again:
+	if side=="left" then
+		turtle.turnRight()
+	elseif side=="right" then
+		turtle.turnLeft()
+	end
+end
+function indentValue(value)
+	if value==nil then value=0 end--prevent crash
+	if value>999 then return "["..value.."  ]"
+	elseif value>99 then return "["..value.."   ]"
+	elseif value>9 then return "["..value.."    ]"
+	else  return "["..value.."     ]" end
+end
+function placeOrder()
+	reset()--we should be against a wall, but it's in case we crashed or restarted
+	while true do
+		os.sleep(0.1)
+		ritems=countItems("right")
+		litems=countItems("left")--TODO optimise this (turn less)
+		lcount[currentLoc]=litems
+		rcount[currentLoc]=ritems--refresh stock count while we're at it
+		print(litems.."-"..ritems)--debug
+		totalItems=totalItems+ritems+litems--keep track of total store items
+		if litems~=nil and lorder[currentLoc]~=nil and lorder[currentLoc]~=0 and litems>=lorder[currentLoc] then
+			takeItems("left",lorder[currentLoc])
+		end
+		if ritems~=nil and rorder[currentLoc]~=nil and rorder[currentLoc]~=0 and ritems>=rorder[currentLoc] then
+			takeItems("right",rorder[currentLoc])
+		end
+		
+		if turtle.forward() and turtle.forward() then--if we successfully move forward twice
+			currentLoc=currentLoc+1
+		else
+			break--reached end
+		end
+	end--end loop for taking chest items
+	for slot=1,16 do--for all inventory slots
+		turtle.select(slot)
+		turtle.drop()--drop entire inventory into chest or obsidian pipe
+	end
+	reset()
+end
+--takeItems("left",tonumber(io.read()))
+print("checking stock")
+checkStock()
+--placeOrder()
+function getDynamicLine(name,page)
+	--add custom output functions here (server-->client)
+	if name=="fuel" then
+		return "fuel level: "..turtle.getFuelLevel()
+	end
+	return "dynamic line not found"
+end
+function runDynamicCommand(name,client,page)
+	--add custom input functions here(server<--client)
+	if name=="stock" then
+		checkStock()
+	end
+end
+function takeDynamicInput(name,client,data)
+	--to make a dialog box, use askUser(client,"name","what is your name?")
+	if tonumber(data)~=nil then
+		input=tonumber(data)
+		item=tonumber(string.sub(name,2,-1))
+		if string.sub(name,1,1)=="l" then
+			if lcount[item]>=input then lorder[item]=input end--only set if there's enough stock
+		elseif string.sub(name,1,1)=="r" then
+			if rcount[item]>=input then rorder[item]=input end--only set if there's enough stock
+			--TODO popup telling user it's not possible
+		end
+	end
+end
+
+function sendDynamicPage(page,client)
+	if page=="/left" then
+		rednet.send(client,"DAIN^f1TREE")--company name
+		rednet.send(client,"page 1")
+		rednet.send(client,"^bE[next page]")
+		rednet.send(client,"^bE[view cart]")
+		rednet.send(client,"^bE[checkout ]")
+		rednet.send(client,"")
+		rednet.send(client,"^b3item name         ^b1in stock^b5 in cart")
+		--NOTE: first line in items list is line 8
+		for i=1,storeSize do--print all items on page
+			if lnames[i]~=nil then currentLine="^b3"..lnames[i]
+			else currentLine="^b3N/A" end
+			if lcount[i]~=nil then
+				for j=string.len(currentLine),indent do
+					currentLine=currentLine.." "--indentation
+				end
+				currentLine=currentLine.."^b1"..indentValue(lcount[i]).."^b5"..indentValue(lorder[i])--show how much is in stock and in cart
+				
+			end
+			rednet.send(client,currentLine)
+			end
+	elseif page=="/right" then
+		rednet.send(client,"DAIN^f1TREE")--company name
+		rednet.send(client,"page 2")
+		rednet.send(client,"^bE[prev page]")
+		rednet.send(client,"^bE[view cart]")
+		rednet.send(client,"^bE[checkout ]")
+		rednet.send(client,"")
+		rednet.send(client,"^b3item name         ^b1in stock^b5 in cart")
+		--NOTE: first line in items list is line 8
+		for i=1,storeSize do--print all items on page
+			if rnames[i]~=nil then currentLine="^b3"..rnames[i]
+			else currentLine="^b3N/A" end
+			if rcount[i]~=nil then
+				for j=string.len(currentLine),indent do
+					currentLine=currentLine.." "--indentation
+				end
+				currentLine=currentLine.."^b1"..indentValue(rcount[i]).."^b5"..indentValue(rorder[i])--show how much is in stock and in cart
+				
+			end
+			rednet.send(client,currentLine)
+			end
+	elseif page=="/cart" then
+		rednet.send(client,"DAIN^f1TREE")
+		rednet.send(client,"cart")
+		rednet.send(client,"^bE[ page  1 ]")
+		rednet.send(client,"^bE[ page  2 ]")
+		rednet.send(client,"^bE[checkout ]")
+		rednet.send(client,"^bE[clear all]")
+		rednet.send(client,"")
+		rednet.send(client,"^b3item name         ^b1quantity^b5  page  ")
+		for i=1,storeSize do--print all items in cart
+			if lorder[i]~=0 and lorder[i]~=nil then
+				currentLine="^b3"..lnames[i]
+				for j=string.len(currentLine),indent do
+					currentLine=currentLine.." "--indentation
+				end
+				rednet.send(client,currentLine.."^b1"..indentValue(lorder[i]).."^b5"..indentValue(1))
+			end
+			if rorder[i]~=0 and rorder[i]~=nil then
+				currentLine="^b3"..rnames[i]
+				for j=string.len(currentLine),indent do
+					currentLine=currentLine.." "--indentation
+				end
+				rednet.send(client,currentLine.."^b1"..indentValue(rorder[i]).."^b5"..indentValue(2))
+			end
+		end
+	end
+end
+--ammount
+--available
+--inStock
+--in cart
+--quantity
+--  page  
+function sendDynamicPageCommand(page,line,client)
+	if line==1 then
+		rednet.send(client,"loc:home")--top line always goes to home page
+	elseif line==5 then--all dynamic pages have checkout on line 5
+		rednet.send(client,"glob:exfed/route")--send user to shipment site
+		placeOrder()
+		lorder={}
+		rorder={}--clear cart (after placing order)
+		--TODO: redirect to shipping site
+	elseif line==3 and (page=="/cart" or page=="/right") then
+		rednet.send(client,"loc:left")
+	elseif (line==3 and page=="/left") or (line==4 and page=="/cart") then
+		rednet.send(client,"loc:right")
+	elseif line==4 and (page=="/left" or page=="/right") then
+		rednet.send(client,"loc:cart")
+	elseif line==6 and page=="/cart" then
+		lorder={}
+		rorder={}--clear cart
+		rednet.send(client,"ref")--refresh the page
+	elseif page=="/left" and line>7 and line<storeSize+8 then--selected item on page 1
+		askUser(client,"l"..line-7,"new quantity?")
+	elseif page=="/right" and line>7 and line<storeSize+8 then--selected item on page 2
+		askUser(client,"r"..line-7,"new quantity?")
+	end
+end

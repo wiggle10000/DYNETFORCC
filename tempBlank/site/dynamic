@@ -1,0 +1,16 @@
+function getDynamicLine(name,page)
+  --add custom output functions here (server-->client)
+  
+end
+function runDynamicCommand(name,client,page)
+	--add custom input functions here(server<--client)
+	
+end
+function takeDynamicInput(name,client,data)
+	--result from dialog boxes is recieved here
+	--to make a dialog box, use askUser(client,"name","what is your name?")
+	--and here, type "if name=="name" then
+	--userName=data
+	--end
+	
+end

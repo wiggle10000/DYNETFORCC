@@ -1,0 +1,115 @@
+-------------------
+--DYNET installer--
+-------------------
+function getDeviceSide(deviceType)
+  -- List of all sides
+  local lstSides = {"left","right","top","bottom","front","back"};
+  -- Now loop through all the sides
+  for i, side in pairs(lstSides) do
+    if (peripheral.isPresent(side)) then
+      -- Yup, there is something on this side
+      if (peripheral.getType(side) == string.lower(deviceType)) then
+        -- Yes, this is the device type we need, so return the side
+        return side
+      end
+    end
+  end
+  --nothing found, return nill
+  return nil
+end
+function install(path)
+	local FileList = fs.list("disk/"..path) --Table with all the files and directories available
+
+	for _, file in ipairs(FileList) do
+	print("copying "..file.."...")
+	fs.delete(file)--delete any old copies
+	fs.copy("disk/"..path.."/"..file,file)
+	end
+end
+term.clear()
+term.setCursorPos(1,1)
+side=getDeviceSide("modem")
+if side==nil then
+	print("no modem found")
+	print("connect modem and enter side's name (back, top etc.)")
+	side=io.read()
+end
+rednet.open(side)
+
+print("welcome to the dynet installer")
+print("please select this computer's function: ")
+print("1: client (web browser)")
+print("2: ddns server")
+print("3: web server")
+option=io.read()
+
+if option=="1" then
+	if not term.isColor() then
+		print("sorry! you can only install the client")
+		print("on an advanced computer! (the gold one)")
+		while true do end
+	else
+		install("client")
+	end
+elseif option=="2" then
+install("dns")
+elseif option=="3" then
+	install("server")
+	print("enter a website name:")
+	name=io.read()
+	print("checking for DDNS server...")
+	rednet.broadcast("@ddns")--search for dedicated dns
+	ddnsID,result=rednet.receive(1)
+	if result==nil then
+		print("DDNS was NOT found.")
+		print("if your setup has a DDNS server,")
+		print("please exit this installer and make sure it's working")
+		print("press enter to continue")
+		io.read()
+		fs.delete("settings")--remove old settings file
+		file=fs.open("settings","w")--create file containing name and modem side
+		file.write(name.."\n"..side)
+		file.close()
+	else
+		print("DDNS was found with ID "..ddnsID)
+		rednet.send(ddnsID,"@addserver "..name)
+		rednet.send(ddnsID,"@whoisid "..os.getComputerID())
+		_,currentName=rednet.receive(1)
+		if currentName==nil then
+			print("failed to add name to DDNS!")
+			while true do end
+		end
+		if currentName==name then
+			print("added site to server list on DDNS")
+		else
+			print("WARNING: DDNS response to whoisid: "..name)--should not happen, but if it does...
+		end
+	end
+	print("")
+	print("please choose a server preset:")
+	print("0: nothing/keep site folder")
+	print("1: blank template")
+	print("2: pre-made servers")
+	option=io.read()
+	if option=="1" then
+		install("tempBlank")
+		end
+	if option=="2" then
+		print("1: music/redstone demo")
+		print("2: daintree server (req. wifi turtle and openperipheral)")
+		option=io.read()
+		if option=="1" then install("tempMusic")
+		elseif option=="2" then install("tempStore")
+		end
+		
+		end
+else while true do end
+end
+--if we reach this, it worked
+print("installed sucessfully!")
+print("disk will auto eject in 3 seconds")
+sleep(3)
+side=getDeviceSide("drive")
+disk.setLabel(side,"DYNET installer")
+disk.eject(side)
+os.reboot()

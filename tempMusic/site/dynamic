@@ -1,0 +1,43 @@
+currentValue=0
+function getDynamicLine(name)
+  --add custom output functions here (server-->client)
+	if name=="disk" then
+		if disk.isPresent("left") then
+			return "currently has: "..disk.getAudioTitle("left")
+		else
+			return "no disk"
+		end
+	end
+ if name=="status" then
+  return "current value: "..currentValue
+  end
+end
+
+function runDynamicCommand(name,client)
+	--add custom input functions here(server<--client)
+	if name=="eject" then
+		disk.eject("left")
+		rednet.send(client,"ref")--ask to refresh the page
+	end
+	if name=="play" then
+		disk.playAudio("left")
+	end
+	if name=="stop" then
+		disk.stopAudio("left")
+	end
+ if name=="edit" then--change redstone value
+  askUser(client,"value","enter signal strength 0-15")
+ end
+end
+
+function takeDynamicInput(name,client,data)
+	--result from dialog boxes is recieved here
+	--to make a dialog box, use askUser(client,"name","what is your name?")
+	--and here, type "if name=="name" then
+	--userName=data
+	--end
+	if name=="value" then
+		rs.setAnalogOutput("front",tonumber(data))
+  currentValue=tonumber(data)
+	end
+end
